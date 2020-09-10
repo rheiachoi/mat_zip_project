@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta property="og:title" content="오늘 어디서 뭐 먹지" />
+    <meta property="og:description" content="맛집을 검색해보세요" />
+    <meta property="og:image" content="{{ url_for('static', filename='images/matzip_pic.jpg') }}" />
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <title> 맛집 검색</title>
+    <script type="text/javascript"
+        src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=p868ex94t3&submodules=geocoder"></script>
+
+    <link rel=" stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+
+    <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+        integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
+        crossorigin="anonymous"></script>
+
+    <script src=" https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <style>
+        #map {
+            width: 700px;
+            height: 500px;
+            margin: 50px auto 50px auto;
+        }
+
+        .wrap {
+            width: 700px;
+            margin: 10px auto;
+        }
+
+        .matzip-list {
+            overflow: scroll;
+            width: 700px;
+            height: 800px;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>오늘 어디서 뭐 먹을까?</h1>
+        <div class="input-group mb-3">
+            <input id="gu-name" type="text" class="form-control" placeholder="예시) 강남구">
+            <div class="input-group-append">
+                <button type="button" class="btn btn-success" onclick="find_my_best_place()">MATZIP SEARCH!!</button>
+            </div>
+        </div>
+        <div id="map"></div>
+
+        <div class="matzip-list" id="matzip-box">
+        </div>
+    </div>
+
+    <script>
+      let seoulGu = ["종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구", "은평구",
+      "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구", "강동구"];
+
+      function isValidGuName(guName) {
+       for (let i = 0; i < seoulGu.length; i++) {
+        if (guName == seoulGu[i]) {
+            return true;
+           }
+       }
+       return false;
+      }
+
+     function getLatLng(mapx, mapy) {
+        let x = parseInt(mapx);
+        let y = parseInt(mapy);
+        let geoInfo = naver.maps.TransCoord.fromTM128ToLatLng(new naver.maps.Point(x, y));
+        return { 'lat': geoInfo._lat, 'lng': geoInfo._lng }
+    }
+
+        function getMatzipListWithGeoData(matzipList) {
+        let result = [];
+
+        for (let i = 0; i < matzipList.length; i++) {
+            let matzip = matzipList[i];
+            let mapx = matzip['mapx'];
+            let mapy = matzip['mapy'];
+            let geoData = getLatLng(mapx, mapy);
+            matjip['geoData'] = geoData;
+            result.push(matzip);
+        }
+        return result;
+    }
+
+      function find_my_best_place() {
+          let guName = $('#gu-name').val();
+          if (guName == '') {
+              alert('구 이름을 입력하세요');
+              return;
+          }
+          if (isValidGuName(guName) == false) {
+              alert('올바른 구 이름을 입력하세요');
+              return;
+          }
+      }
+
+    $('#matzip-box').empty();
+    $.ajax({
+        type: "GET",
+        url: `/matzip?gu_give=${guName}`,
+        data: {},
+        success: function (response) {
+            if (response['result'] == 'success') {
+                let matzipList = response['matzip_list'];
+                matzipList = getMatzipListWithGeoData(matzipList);
+                addHTML(matzipList);
+                drawMap(matzipList);
+            } else {
+                alert('검색이 실패하였습니다.');
+            }
+        }
+    });
+
+    function addHTML(matzipList) {
+        for (let i = 0; i < matzipList.length; i++) {
+            let tempHtml = makeCard(matzipList[i]);
+            $('#matzip-box').append(tempHtml);
+        }
+    }
+
+
+    function makeCard(matzip) {
+        return `<div class="card">
+                <div class="card-body">
+                    <h5 class="card-title"><a href="#" class="matzip-title">${matzip['title']}</a></h5>
+                    <h6 class="card-subtitle mb-2 text-muted">${matzip['category']}</h6>
+                    <p class="card-text">${matzip['roadAddress']}</p>
+                    <a href="${matzip['link']}" target="_blank" class="card-link">링크</a>
+                    <a href="#" class="card-link">${matzip['telephone']}</a>
+                </div>
+                </div>`;
+    }
+
+    function drawMap(matzipList) {
+        let geoData = matzipList[0]['geoData'];
+        let markerList = [];
+        let contents = [];
+        let numberOne = new naver.maps.LatLng(geoData['lat'], geoData['lng']),
+            map = new naver.maps.Map('map', {
+                center: numberOne,
+                zoom: 12
+            }),
+            marker = new naver.maps.Marker({
+                position: numberOne,
+                map: map
+            });
+
+        for (let i = 1; i < matzipList.length; i++) {
+            let matzip = matzipList[i];
+            let position = new naver.maps.LatLng(matzip['geoData']['lat'], matzip['geoData']['lng'])
+            marker = new naver.maps.Marker({
+                position: position,
+                map: map
+            });
+            let contentString = `<div class="iw_inner">
+                                <h3>${matzip['title']}</h3>
+                                <p>${matzip['address']}<br />
+                                    ${matzip['category']}<br />
+                                    <a href="${matzip['link']}" target="_blank">링크</a>
+                                </p>
+                                </div>`;
+            contents.push(contentString);
+            markerList.push(marker);
+        }
+
+        const matzipElement = $('.matzip-title');
+
+        for (let i = 0; i < markerList.length; i++) {
+            let marker = markerList[i];
+            let infowindow = new naver.maps.InfoWindow({
+                content: contents[i],
+                maxWidth: 140,
+                backgroundColor: "#eee",
+                borderColor: "#2db400",
+                borderWidth: 5,
+                anchorSize: new naver.maps.Size(30, 30),
+                anchorSkew: true,
+                anchorColor: "#eee",
+                pixelOffset: new naver.maps.Point(20, -20)
+            });
+            naver.maps.Event.addListener(marker, "click", function (e) {
+                if (infowindow.getMap()) {
+                    infowindow.close();
+                } else {
+                    infowindow.open(map, marker);
+                }
+            });
+
+            matzipElement[i].addEventListener('click', function (e) {
+            e.preventDefault();
+            if (infowindow.getMap()) {
+                infowindow.close();
+            } else {
+                infowindow.open(map, marker);
+            }
+            })
+    }
+}
+</script>
+</body>
+
+</html>
